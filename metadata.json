@@ -1,0 +1,6 @@
+{
+  "name": "James Tech",
+  "description": "Technology Academy for Young Innovators ages 7–16. Hands-on coding, robotics, web development, and AI education empowering the next generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
