@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { programs } from '../data/programsData';
 import {
   CheckCircle2,
@@ -13,6 +14,7 @@ import {
   Copy,
   Check,
   ExternalLink,
+  LayoutDashboard,
 } from 'lucide-react';
 import {
   ADMIN_EMAIL,
@@ -22,15 +24,18 @@ import {
   generateEnrollmentMailto,
   generateEnrollmentWhatsApp,
   formatEnrollmentText,
-  submitEnrollmentToBackend,
   EnrollmentPayload,
 } from '../services/emailService';
+import { createEnrollment } from '../lib/database';
+import { useAuth } from '../context/AuthContext';
 
 interface EnrollmentSectionProps {
   initialProgramId?: string;
 }
 
 export const EnrollmentSection: React.FC<EnrollmentSectionProps> = ({ initialProgramId }) => {
+  const { user, profile } = useAuth();
+
   const [parentName, setParentName] = useState('');
   const [studentName, setStudentName] = useState('');
   const [studentAge, setStudentAge] = useState<string>('10');
@@ -40,6 +45,19 @@ export const EnrollmentSection: React.FC<EnrollmentSectionProps> = ({ initialPro
   const [learningFormat, setLearningFormat] = useState<'in-person' | 'online'>('in-person');
   const [preferredDays, setPreferredDays] = useState<'weekends' | 'weekdays' | 'flexible'>('weekends');
   const [message, setMessage] = useState('');
+
+  // Auto-fill from authenticated profile
+  useEffect(() => {
+    if (profile) {
+      if (profile.full_name && !studentName) setStudentName(profile.full_name);
+      if (profile.guardian_name && !parentName) setParentName(profile.guardian_name);
+      if (profile.student_age) setStudentAge(String(profile.student_age));
+      if (profile.phone && !phone) setPhone(profile.phone);
+      if (profile.email && !email) setEmail(profile.email);
+    } else if (user?.email && !email) {
+      setEmail(user.email);
+    }
+  }, [profile, user]);
 
   // Touched state to control when validation messages appear
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -130,20 +148,20 @@ export const EnrollmentSection: React.FC<EnrollmentSectionProps> = ({ initialPro
       message: message.trim(),
     };
 
-    // Save locally to persist record
-    try {
-      const existing = JSON.parse(localStorage.getItem('james_tech_enrollments') || '[]');
-      existing.push({
-        ...payload,
-        submittedAt: new Date().toISOString(),
-      });
-      localStorage.setItem('james_tech_enrollments', JSON.stringify(existing));
-    } catch (err) {
-      console.error('LocalStorage write error', err);
-    }
-
-    // Call backend API route (/api/enroll)
-    const backendResult = await submitEnrollmentToBackend(payload);
+    // Persist to Supabase enrollments table and dispatch to backend notification
+    const result = await createEnrollment({
+      userId: user?.id || null,
+      programId: selectedProg.id,
+      programTitle: selectedProg.title,
+      format: learningFormat,
+      schedule: preferredDays,
+      notes: message.trim(),
+      parentName: parentName.trim(),
+      studentName: studentName.trim(),
+      studentAge,
+      phone: phone.trim(),
+      email: email.trim(),
+    });
 
     // Direct auto-trigger to open user's email client or Gmail addressed directly to yaikobdiriba22@gmail.com
     const gmailUrl = generateEnrollmentGmail(payload);
@@ -155,7 +173,7 @@ export const EnrollmentSection: React.FC<EnrollmentSectionProps> = ({ initialPro
 
     setSubmittedPayload({
       ...payload,
-      refCode: backendResult.refCode || refCode,
+      refCode: result.refCode || refCode,
     });
     setIsSubmitting(false);
     setIsSuccess(true);
@@ -301,6 +319,27 @@ export const EnrollmentSection: React.FC<EnrollmentSectionProps> = ({ initialPro
                     {ADMIN_EMAIL} ({ADMIN_PHONE_DISPLAY})
                   </span>
                 </div>
+              </div>
+
+              {/* Dashboard Access CTA */}
+              <div className="pt-1">
+                {user ? (
+                  <Link
+                    to="/dashboard"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 rounded-xl transition-all shadow-md"
+                  >
+                    <LayoutDashboard className="w-4 h-4" />
+                    <span>View Enrollment in Student Dashboard</span>
+                  </Link>
+                ) : (
+                  <Link
+                    to="/signup"
+                    className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition-all shadow-md"
+                  >
+                    <span>Create Student Account to Track Progress</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </Link>
+                )}
               </div>
 
               {/* Utility actions */}

@@ -21,9 +21,9 @@ import {
   generateContactMailto,
   generateContactWhatsApp,
   formatContactText,
-  submitContactToBackend,
   ContactPayload,
 } from '../services/emailService';
+import { submitContactMessage } from '../lib/database';
 
 interface ContactSectionProps {
   initialSubject?: string;
@@ -107,8 +107,13 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ initialSubject }
       console.error('LocalStorage write error', err);
     }
 
-    // Call backend API route (/api/contact)
-    await submitContactToBackend(payload);
+    // Call database service (saves to Supabase contact_messages and calls backend route)
+    await submitContactMessage({
+      name: payload.name,
+      email: payload.email,
+      subject: payload.subject,
+      message: payload.message,
+    });
 
     // Direct auto-trigger to open user's email composer addressed to yaikobdiriba22@gmail.com
     const gmailUrl = generateContactGmail(payload);
